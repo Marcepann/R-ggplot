@@ -1,0 +1,128 @@
+---
+title: "BT4BR Assignment 8"
+author:
+  name: Kaja Łucka
+date: "2025-05-07" 
+format: 
+  html:
+      df-print: paged                 # data frames as paginated tables
+      tidy: false                     # disable automatic code tidying 
+      embed-resources: true           # embed images in the HTML file
+      theme: navbars                    # pretty theme :D
+      toc: true                       # enable table of contents
+      toc-location: right
+      toc-depth: 6
+      toc-expand: 6
+      code-tools:
+        source: true                  # show the source code
+        toggle: true                  # allow the user to hide/show the code blocks
+      code-fold: false                # by default code blocks are expanded
+      code-summary: "Show the code"   # label the code folding toggle
+      code-overflow: wrap             # wrap long lines of code
+      page-layout: full               # use the full width of the page
+editor: visual
+editor_options: 
+  markdown: 
+    wrap: 72
+execute:
+  cache: true                         # code isn’t rerun unless it changes
+---
+
+*To complete this assignment I used materials shared with students
+during "Basic Toolkit for Bioinformatics Research" course. I also
+intensely browsed the internet, and consulted ChatGPT for
+troubleshooting. I gathered information from the following websites:*
+
+[*forum.posit.co/t/combining-the-mutate-and-if-else-function-together/180428*](https://forum.posit.co/t/combining-the-mutate-and-if-else-function-together/180428)
+
+[*r-graph-gallery.com/38-rcolorbrewers-palettes.html*](https://r-graph-gallery.com/38-rcolorbrewers-palettes.html)
+
+[*ggplot2-book.org/scales-position.html*](https://ggplot2-book.org/scales-position.html)
+
+## Example of a "bad plot"
+
+This ugly chart was sourced from
+[this](www.projektpulsar.pl/struktura/2290727,1,pulsar-oglasza-najgorsze-wykresy-roku-2024.read)
+website.
+
+![](bananas.png){fig-align="center"}
+
+## Proposed solution on how to fix this plot
+
+I needed to obtain data on bananas export first, so I used
+[FAOSTAT](https://www.fao.org/faostat/en/#data/TCL) and downloaded a CSV
+file (*FAOSTAT_data.csv*).
+
+```{r}
+# I load all necessary packages
+library("readr")
+library("tidyr")
+library("dplyr")
+library("ggplot2")
+library("scales")
+library("RColorBrewer")
+```
+
+```{r}
+# This function is used to generate graphs :)
+# I use this formula to create three graphs, so I decided to put it in a function
+# It creates an overlapping point and line plot
+# Values are grouped by country (Area)
+# I tweaked the spacing of some elements (theme)
+# I also wanted the Y-axis to look neat and informative (scale_y_continuous)
+make_banana_plot <- function(given_data, given_title) 
+  {
+  ggplot(data = given_data, aes(x = factor(Year), y=Value)) +
+  geom_point(size = 2, aes(colour = Area)) +
+  geom_line(linetype = "dashed", alpha=0.75, aes(group = Area, colour = Area)) +
+  labs(title=given_title, 
+       x="Year", 
+       y="Bananas [t]",
+       colour = "Country") +
+  theme(axis.text.x = element_text(angle=45, vjust = 0.5, hjust=0.5),
+        plot.title = element_text(margin = margin(b = 20)),
+        axis.title.x = element_text(margin = margin(t = 15)),
+        axis.title.y = element_text(margin = margin(r = 15))) +
+  scale_y_continuous(
+        breaks = seq(0, max(banana_data$Value), by = 500000),
+        labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  scale_colour_manual(values = my_colour_set)}
+```
+
+```{r}
+# I opened my CSV file and saved it to the banana_data variable
+# I also read Unit column as text, because read_csv converted tonnes (t) into TRUE
+banana_data <- read_csv("FAOSTAT_data.csv", col_types = cols(Unit = col_character()))
+banana_data
+
+# I had to change record names, because Belgium and Belgium-Luxembourg were separated until the year 2000 
+banana_data <- banana_data %>%
+  mutate(Area = if_else(Area == "Belgium", "Belgium-Luxembourg", Area))
+
+# I don't want the colours to change between plots so
+# I create a set of colours for different areas in the banana_data dataset
+# I steal colours from the brewer palette "Paired" and assign each one a name (area name)
+paired_colours <- brewer.pal(n = length(unique(banana_data$Area)), name = "Paired")
+my_colour_set <- setNames(paired_colours, unique(banana_data$Area))
+
+# Here I use my handy function to generate a banana plot
+make_banana_plot(banana_data, "Export of bananas in tonnes in years 1994-2005")
+```
+
+As can be seen, this plot looks much better now. However, it still
+contains a lot of data (for 11 countries).
+
+## Proposed solution on how to fix the fixed plot
+
+I thought it would look even better to separate the data into two
+separate charts to make the plot less crowded.
+
+```{r}
+# I split my data into two parts
+# I use my banana plot function again! 
+banana_data_1 <- subset(banana_data, Area %in% c("Ecuador", "Costa Rica", "Colombia", "Philippines"))
+make_banana_plot(banana_data_1, "Top exporters of bananas (1994–2005)")
+
+banana_data_2 <- subset(banana_data, !(Area %in% banana_data_1$Area))
+make_banana_plot(banana_data_2, "Other exporters of bananas (1994–2005)")
+```
